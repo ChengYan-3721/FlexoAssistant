@@ -1,47 +1,45 @@
 pub mod components;
 
-use std::rc::Rc;
-use floem::event::{EventListener, EventPropagation};
 use crate::flexo::FlexoInfo;
 use floem::kurbo::Stroke;
 use floem::peniko::Color;
 use floem::prelude::*;
-use floem::IntoView;
-use crate::ui::components::format_number;
+use std::rc::Rc;
+use crate::ui::components::FlexoInput;
 
 pub fn counter_view() -> impl IntoView {
     let flexo = Rc::new(FlexoInfo::new());
-    let gears = flexo.gears();
+
+    let gears = FlexoInput::new("齿数", flexo.gears(), "T", Rc::clone(&flexo));
+    let girth = FlexoInput::new("版辊周长", flexo.girth(), "mm", Rc::clone(&flexo));
+    let count = FlexoInput::new("模数", flexo.count(), "", Rc::clone(&flexo));
+    let before = FlexoInput::new("变形前", flexo.before(), "", Rc::clone(&flexo));
+    let after = FlexoInput::new("变形后", flexo.after(), "", Rc::clone(&flexo));
+
     let pitch = flexo.pitch();
-    let girth = flexo.girth();
     let thickness = flexo.thickness();
     let deformation = flexo.deformation();
-    let count = flexo.count();
-    let before = flexo.before();
-    let before_flexo = Rc::clone(&flexo);
-    let after = flexo.after();
-    let after_flexo = Rc::clone(&flexo);
-    // let one_data = flexo.one_data();
-    let data = flexo.data();
+    let data = Rc::new(flexo.data());
+    let use_data = create_rw_signal(Rc::clone(&data));
     let pitch_array: Vec<String> = ["3.175", "5"].iter().map(|x| x.to_string()).collect();
-    let girth_array: Vec<String> = ["0.95", "1.14", "1.7", "2.28", "2.84", "3.94"].iter().map(|x| x.to_string()).collect();
+    let girth_array: Vec<String> = ["0.95", "1.14", "1.7", "2.28", "2.84", "3.94"]
+        .iter()
+        .map(|x| x.to_string())
+        .collect();
 
+    let compute = Rc::new( move |label: &str| {
+        flexo.compute(label)
+    });
 
     v_stack((
         h_stack((
-            components::form_input("齿数", gears, "T", Rc::clone(&flexo)),
-            components::form_select("齿距", pitch, pitch_array, "mm", Rc::clone(&flexo)),
+            components::form_input(gears, Rc::clone(&compute)),
+            components::form_select("齿距", pitch, pitch_array, "mm", Rc::clone(&compute)),
         ))
         .style(|s| s.items_start().justify_center().gap(30)),
         h_stack((
-            components::form_input("版辊周长", girth, "mm", Rc::clone(&flexo)),
-            components::form_select(
-                "版材厚度",
-                thickness,
-                girth_array,
-                "mm",
-                Rc::clone(&flexo)
-            ),
+            components::form_input(girth, Rc::clone(&compute)),
+            components::form_select("版材厚度", thickness, girth_array, "mm", Rc::clone(&compute)),
         ))
         .style(|s| s.items_start().justify_center().gap(30)),
         h_stack((
@@ -61,7 +59,7 @@ pub fn counter_view() -> impl IntoView {
                 label(move || "%").style(|s| s.width(30)),
             ))
             .style(|s| s.height(30).items_center().justify_center().gap(5)),
-            components::form_input("模数", count, "模", Rc::clone(&flexo)),
+            components::form_input(count, Rc::clone(&compute)),
         ))
         .style(|s| s.items_start().justify_center().gap(30)),
         h_stack((
@@ -73,19 +71,11 @@ pub fn counter_view() -> impl IntoView {
         .style(|s| s.height(30).items_center().justify_center().gap(30)),
         h_stack((
             label(|| "自定义").style(|s| s.width(40)),
-            text_input(before).on_event(EventListener::KeyUp, move |_| {
-                before.set(format_number(before.get()));
-                before_flexo.compute("变形前");
-                EventPropagation::Stop
-            }),
-            text_input(after).on_event(EventListener::KeyUp, move |_| {
-                after.set(format_number(after.get()));
-                after_flexo.compute("变形后");
-                EventPropagation::Stop
-            })
+            before.input(Rc::clone(&compute)),
+            after.input(Rc::clone(&compute)),
         ))
         .style(|s| s.height(30).items_center().justify_center().gap(5)),
-        components::form_list(data),
+        components::form_list(use_data.get().to_vec()),
     ))
     .style(|s| s.size_full().items_center().justify_center().gap(10))
 }
